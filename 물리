@@ -1,0 +1,173 @@
+import numpy as np
+
+
+def motion_determine(data):
+    time = np.array([point[0] for point in data])
+    position = np.array([point[1] for point in data])
+
+    if len(time) < 3 or len(position) < 3:
+        raise ValueError('데이터 포인트가 충분하지 않습니다.')
+
+    center = np.mean(position, axis=0)
+    radii = np.linalg.norm(position - center, axis=1)
+    mean_radius = np.mean(radii)
+    radius_variation = np.std(radii)
+
+    if radius_variation < 1e-1:
+        motion_name = '원 운동'
+    else:
+        A = np.vstack([time, np.ones(len(time))]).T
+        slope_x, intercept_x = np.linalg.lstsq(A, position[:, 0], rcond=None)[0]
+        slope_y, intercept_y = np.linalg.lstsq(A, position[:, 1], rcond=None)[0]
+
+        residuals_x = position[:, 0] - (slope_x * time + intercept_x)
+        residuals_y = position[:, 1] - (slope_y * time + intercept_y)
+
+        if np.mean(residuals_x ** 2) < 1e-2 and np.mean(residuals_y ** 2) < 1e-2:
+            motion_name = '등속 직선 운동'
+        else:
+            coeffs_x = np.polyfit(time, position[:, 0], 2)
+            coeffs_y = np.polyfit(time, position[:, 1], 2)
+            residuals_x = position[:, 0] - (coeffs_x[0] * time ** 2 + coeffs_x[1] * time + coeffs_x[2])
+            residuals_y = position[:, 1] - (coeffs_y[0] * time ** 2 + coeffs_y[1] * time + coeffs_y[2])
+
+            if np.mean(residuals_x ** 2) < 1e-2 and np.mean(residuals_y ** 2) < 1e-2:
+                motion_name = '포물선 운동'
+            else:
+                motion_name = '등가속도 직선 운동'
+
+    return motion_name
+
+
+def predict_motion(data, motion_name):
+    time = np.array([point[0] for point in data])
+    position = np.array([point[1] for point in data])
+
+    if motion_name == '등속 직선 운동':
+        A = np.vstack([time, np.ones(len(time))]).T
+        slope_x, intercept_x = np.linalg.lstsq(A, position[:, 0], rcond=None)[0]
+        slope_y, intercept_y = np.linalg.lstsq(A, position[:, 1], rcond=None)[0]
+
+        def predict(t):
+            return (slope_x * t + intercept_x, slope_y * t + intercept_y)
+    elif motion_name == '등가속도 직선 운동':
+        coeffs_x = np.polyfit(time, position[:, 0], 2)
+        coeffs_y = np.polyfit(time, position[:, 1], 2)
+
+        def predict(t):
+            return (coeffs_x[0] * t ** 2 + coeffs_x[1] * t + coeffs_x[2],
+                    coeffs_y[0] * t ** 2 + coeffs_y[1] * t + coeffs_y[2])
+    elif motion_name == '원 운동':
+        center = np.mean(position, axis=0)
+        radius = np.mean(np.linalg.norm(position - center, axis=1))
+
+        def predict(t):
+            angle = 2 * np.pi * (t / max(time))
+            return center + radius * np.array([np.cos(angle), np.sin(angle)])
+    elif motion_name == '포물선 운동':
+        coeffs_x = np.polyfit(time, position[:, 0], 2)
+        coeffs_y = np.polyfit(time, position[:, 1], 2)
+
+        def predict(t):
+            return (coeffs_x[0] * t ** 2 + coeffs_x[1] * t + coeffs_x[2],
+                    coeffs_y[0] * t ** 2 + coeffs_y[1] * t + coeffs_y[2])
+    else:
+        raise ValueError('알 수 없는 운동 종류입니다.')
+
+    return predict
+
+
+def calculate(data, motion_name):
+    time = np.array([point[0] for point in data])
+    position = np.array([point[1] for point in data])
+
+    if motion_name == '등속 직선 운동':
+        A = np.vstack([time, np.ones(len(time))]).T
+        slope_x, intercept_x = np.linalg.lstsq(A, position[:, 0], rcond=None)[0]
+        slope_y, intercept_y = np.linalg.lstsq(A, position[:, 1], rcond=None)[0]
+        equation = f"x(t) = {slope_x:.2f} * t + {intercept_x:.2f}, y(t) = {slope_y:.2f} * t + {intercept_y:.2f}"
+    elif motion_name == '등가속도 직선 운동':
+        coeffs_x = np.polyfit(time, position[:, 0], 2)
+        coeffs_y = np.polyfit(time, position[:, 1], 2)
+        equation = f"x(t) = {coeffs_x[0]:.2f} * t^2 + {coeffs_x[1]:.2f} * t + {coeffs_x[2]:.2f}, y(t) = {coeffs_y[0]:.2f} * t^2 + {coeffs_y[1]:.2f} * t + {coeffs_y[2]:.2f}"
+    elif motion_name == '원 운동':
+        center = np.mean(position, axis=0)
+        radius = np.mean(np.linalg.norm(position - center, axis=1))
+        equation = f"(x - {center[0]:.2f})^2 + (y - {center[1]:.2f})^2 = {radius:.2f}^2"
+    elif motion_name == '포물선 운동':
+        coeffs_x = np.polyfit(time, position[:, 0], 2)
+        coeffs_y = np.polyfit(time, position[:, 1], 2)
+        equation = f"x(t) = {coeffs_x[0]:.2f} * t^2 + {coeffs_x[1]:.2f} * t + {coeffs_x[2]:.2f}, y(t) = {coeffs_y[0]:.2f} * t^2 + {coeffs_y[1]:.2f} * t + {coeffs_y[2]:.2f}"
+    else:
+        raise ValueError('알 수 없는 운동 종류입니다.')
+
+    return equation
+
+
+if __name__ == '__main__':
+    # 대충 원운동하는 물체의 데이터
+    data = [
+        [0, (1, 0)],
+        [1, (0, 1)],
+        [2, (-1, 0)],
+        [3, (0, -1)],
+    ]
+
+    motion_name = motion_determine(data)
+    print(f"판별된 운동: {motion_name}")
+
+    predict = predict_motion(data, motion_name)
+    print(f"t = 4일 때의 위치: {predict(4)}")
+
+    equation = calculate(data, motion_name)
+    print(f"운동 방정식: {equation}\n")
+
+    # 등속 직선 운동 데이터
+    data = [
+        [0, (0, 0)],
+        [1, (0, 1)],
+        [2, (0, 2)],
+        [3, (0, 3)],
+    ]
+
+    motion_name = motion_determine(data)
+    print(f"판별된 운동: {motion_name}")
+
+    predict = predict_motion(data, motion_name)
+    print(f"t = 4일 때의 위치: {predict(4)}")
+
+    equation = calculate(data, motion_name)
+    print(f"운동 방정식: {equation}\n")
+
+    # 등가속도 운동 하는 데이터
+    data = [
+        [0, (0, 0)],
+        [1, (0, 1)],
+        [2, (0, 4)],
+        [3, (0, 9)],
+    ]
+
+    motion_name = motion_determine(data)
+    print(f"판별된 운동: {motion_name}")
+
+    predict = predict_motion(data, motion_name)
+    print(f"t = 4일 때의 위치: {predict(4)}")
+
+    equation = calculate(data, motion_name)
+    print(f"운동 방정식: {equation}\n")
+
+
+    '''
+    최종 출력 결과.
+    판별된 운동: 원 운동
+    t = 4일 때의 위치: [-0.5        0.8660254]
+    운동 방정식: (x - 0.00)^2 + (y - 0.00)^2 = 1.00^2
+    
+    판별된 운동: 등속 직선 운동
+    t = 4일 때의 위치: (np.float64(0.0), np.float64(3.999999999999999))
+    운동 방정식: x(t) = 0.00 * t + 0.00, y(t) = 1.00 * t + -0.00
+    
+    판별된 운동: 포물선 운동
+    t = 4일 때의 위치: (np.float64(0.0), np.float64(15.999999999999998))
+    운동 방정식: x(t) = 0.00 * t^2 + 0.00 * t + 0.00, y(t) = 1.00 * t^2 + -0.00 * t + 0.00
+    '''
