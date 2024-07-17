@@ -1,0 +1,64 @@
+questions = [
+    {"question": "옥텟 법칙을 만족합니까?", "weight": 0.4},
+    {"question": "결합각이 적절합니까?", "weight": 0.3},
+    {"question": "형식 전하가 적절합니까?", "weight": 0.3}
+]
+
+answers = {
+    "매우 아니요": 1,
+    "아니요": 2,
+    "모르겠습니다": 3,
+    "예": 4,
+    "매우 예": 5
+}
+
+
+def get_answer_score(answer):
+    return answers.get(answer, 0)
+
+
+def evaluate_stability(responses):
+    total_score = 0
+    max_score = 0
+
+    for i, response in enumerate(responses):
+        weight = questions[i]["weight"]
+        score = get_answer_score(response)
+        total_score += score * weight
+        max_score += 5 * weight
+
+    stability_ratio = total_score / max_score
+    return stability_ratio
+
+
+def list_stability_conditions():
+    print("화학 구조가 안정하기 위한 조건들:")
+    for i, question in enumerate(questions):
+        print(f"{i+1}. {question['question']} (가중치: {question['weight']})")
+
+
+def main():
+    print("화학 구조의 안정성을 평가합니다.")
+    list_stability_conditions()
+    print("\n질문에 대해 '매우 아니요', '아니요', '모르겠습니다', '예', '매우 예'로 답변해주세요.\n")
+
+    responses = []
+    for question in questions:
+        response = input(question["question"] + " ")
+        responses.append(response)
+
+    stability_ratio = evaluate_stability(responses)
+
+    print("\n평가 결과:")
+    print(f"안정성 비율: {stability_ratio:.2f}")
+
+    if stability_ratio >= 0.8:
+        print("이 화학 구조는 안정합니다.")
+    elif stability_ratio >= 0.62:
+        print("이 화학 구조는 비교적 안정합니다.")
+    else:
+        print("이 화학 구조는 불안정합니다.")
+
+
+if __name__ == "__main__":
+    main()
